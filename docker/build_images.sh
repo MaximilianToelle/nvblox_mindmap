@@ -17,4 +17,7 @@ docker build --network=host \
 # Then add the mindmap dependencies on top
 echo "Building $MINDMAP_DEPS_IMAGE_NAME."
 docker build --network=host -t $MINDMAP_DEPS_IMAGE_NAME . -f docker/Dockerfile.mindmap_deps \
-    --build-arg BASE_IMAGE=${NVBLOX_DEPS_IMAGE_NAME} --progress=plain
+    --build-arg BASE_IMAGE=${NVBLOX_DEPS_IMAGE_NAME} \
+    --build-arg USER_ID=$(id -u) --build-arg USER_NAME=$(id -un) \
+    --build-arg GROUP_ID=$(id -g) --build-arg GROUP_NAME=$(id -gn) \
+    --progress=plain

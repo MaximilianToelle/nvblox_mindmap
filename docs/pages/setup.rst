@@ -34,7 +34,7 @@ Follow these steps to set up mindmap on your system:
 
    .. code-block:: bash
 
-      ./docker/run_docker.sh
+      ./docker/run_docker.sh -b
 
 .. note::
 

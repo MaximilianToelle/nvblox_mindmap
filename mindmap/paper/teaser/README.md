@@ -27,7 +27,7 @@ python run_isaaclab_datagen.py --task drill_in_box --hdf5_file /datasets/mimicge
 We now convert the maps to USD
 
 ```
-python3 /workspaces/mindmap/mindmap/paper/teaser/convert_maps_usd.py --input_dir datagen_output/demo_00000/ --visualize
+python3 /workspaces/nvblox_mindmap/mindmap/paper/teaser/convert_maps_usd.py --input_dir datagen_output/demo_00000/ --visualize
 ```
 
 > Note that this will take awhile.
@@ -50,7 +50,7 @@ python run_isaaclab_datagen.py --task drill_in_box --hdf5_file /datasets/mimicge
 Open Isaac Sim with the modified experience file:
 
 ```
-/workspaces/mindmap/mindmap/paper/teaser/start_isaac_sim_for_rendering.sh
+/workspaces/nvblox_mindmap/mindmap/paper/teaser/start_isaac_sim_for_rendering.sh
 ```
 
 Load your two recorded motion files by right clicking on them and selecting "Insert as sublayer".

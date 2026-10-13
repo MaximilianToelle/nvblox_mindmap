@@ -34,3 +34,8 @@ core_docs_venv/
 *docs/_build
 *docs/doxyoutput
 *docs/api
+
+# Downloaded checkpoints and datasets, closed-loop outputs (mounted into the container)
+/datasets/
+/models/
+/eval/

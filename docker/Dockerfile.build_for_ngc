@@ -7,7 +7,7 @@ ARG BASE_IMAGE=mindmap_deps
 FROM $BASE_IMAGE
 
 # Set the working directory
-WORKDIR /workspaces/mindmap/mindmap
+WORKDIR /workspaces/nvblox_mindmap/mindmap
 
 # Add filebrowser to access intermediate checkpoints during OSMO training
 RUN curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
@@ -17,22 +17,22 @@ RUN curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh |
 ############################
 # Cross compilation to run nvblox on older architectures.
 ENV CMAKE_CUDA_ARCHITECTURES=75;80;89;90
-COPY ../submodules/nvblox /workspaces/mindmap/submodules/nvblox
-COPY ../docker/install_nvblox.sh /workspaces/mindmap/docker/install_nvblox.sh
+COPY ../submodules/nvblox /workspaces/nvblox_mindmap/submodules/nvblox
+COPY ../docker/install_nvblox.sh /workspaces/nvblox_mindmap/docker/install_nvblox.sh
 # We're mounting ccach to speed up the build.
 # This relies on ccache being installed in the base image (nvblox_deps)
 RUN --mount=type=cache,target=/root/.cache/ccache \
-    bash -ic /workspaces/mindmap/docker/install_nvblox.sh
+    bash -ic /workspaces/nvblox_mindmap/docker/install_nvblox.sh
 
 ############################
 # Install mindmap.
 ############################
 # Note that we're copying the mindmap code after nvblox is installed
 # to avoid triggering the nvblox build on changes in python
-COPY ../mindmap /workspaces/mindmap/mindmap
-COPY ../setup.py /workspaces/mindmap/setup.py
-COPY ../docker/install_mindmap.sh /workspaces/mindmap/docker/install_mindmap.sh
-RUN bash -ic /workspaces/mindmap/docker/install_mindmap.sh
+COPY ../mindmap /workspaces/nvblox_mindmap/mindmap
+COPY ../setup.py /workspaces/nvblox_mindmap/setup.py
+COPY ../docker/install_mindmap.sh /workspaces/nvblox_mindmap/docker/install_mindmap.sh
+RUN bash -ic /workspaces/nvblox_mindmap/docker/install_mindmap.sh
 
 ENV NVIDIA_DRIVER_CAPABILITIES=all
 

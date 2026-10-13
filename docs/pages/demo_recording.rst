@@ -393,7 +393,7 @@ To record demonstrations using the Apple Vision Pro and generate additional demo
 .. code-block:: bash
     :substitutions:
 
-    python /workspaces/mindmap/mindmap/scripts/merge_hdf5_files.py \
+    python /workspaces/nvblox_mindmap/mindmap/scripts/merge_hdf5_files.py \
         --inputs <LEFT_GENERATED_HDF5_FILE_PATH> <RIGHT_GENERATED_HDF5_FILE_PATH> \
         --output <COMBINED_HDF5_FILE_PATH>
 

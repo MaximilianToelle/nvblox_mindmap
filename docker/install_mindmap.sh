@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-WORKSPACE_DIR="/workspaces/mindmap"
+WORKSPACE_DIR="/workspaces/nvblox_mindmap"
 
 ################################################################
 # Install mindmap

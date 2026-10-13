@@ -1,6 +1,6 @@
 #!/bin/bash
 
-KIT_FILE_ROOT_DIR="/workspaces/mindmap/submodules/IsaacLab/apps/"
+KIT_FILE_ROOT_DIR="/workspaces/nvblox_mindmap/submodules/IsaacLab/apps/"
 ORIGINAL_KIT_FILE_PATH="$KIT_FILE_ROOT_DIR/isaaclab.python.rendering.kit"
 MODIFIED_KIT_FILE_PATH="$KIT_FILE_ROOT_DIR/isaaclab.python.rendering.syn.kit"
 
