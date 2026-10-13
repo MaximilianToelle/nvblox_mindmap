@@ -124,7 +124,7 @@ if [ "$( docker container inspect -f '{{.State.Running}}' $MINDMAP_DEPS_IMAGE_NA
 else
     # Create the mounted host directories, otherwise docker creates them owned by root.
     mkdir -p "$DATASETS_HOST_MOUNT_DIRECTORY" "$MODELS_HOST_MOUNT_DIRECTORY" "$EVAL_HOST_MOUNT_DIRECTORY" \
-             submodules/nvblox/docker_build
+             submodules/nvblox/docker_build .cache
 
     DOCKER_RUN_ARGS+=("--name" "$MINDMAP_DEPS_IMAGE_NAME"
                       "--privileged"
@@ -163,6 +163,8 @@ else
     else
         DOCKER_RUN_ARGS+=("-v" "$HOME/.Xauthority"
                           "-v" "$HOME/.bash_history:/home/$(id -un)/.bash_history"
+                          # Keeps downloaded feature models (and torch.hub code) and the ccache across starts
+                          "-v" "./.cache:/home/$(id -un)/.cache"
                          )
     fi
 

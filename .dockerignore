@@ -6,3 +6,7 @@ mindmap/eval
 mindmap/wandb
 **/build
 **/__pycache__
+.cache
+datasets
+models
+eval
