@@ -138,6 +138,7 @@ class ClosedLoopArgs(Tap):
     # Recording camera params
     record_camera_output_path: str = None  # The path to store recorded camera images and videos
     record_videos: bool = False
+    record_reconstruction_videos: bool = False  # Record a 2x2 video: the recording camera's RGB, the primary camera's RGB (wrist or pov) with the pixels not integrated into the map in black, the nvblox map rendered from the recording camera, and the same render with the vertices the policy sampled from the map.
     video_size: Tuple[int, int] = (320, 320)  # Image size of recorded video
     # GT predictions mode params
     gt_goals_subsampling_factor: int = 5  # only used in execute_gt_goals + use_keyposes = 0 mode

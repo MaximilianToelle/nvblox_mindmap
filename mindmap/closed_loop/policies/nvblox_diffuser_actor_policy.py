@@ -70,6 +70,8 @@ class NvbloxDiffuserActorPolicy(PolicyBase):
         self.policy_state_history_deque = deque(
             [None] * self.args.num_history, maxlen=self.args.num_history
         )
+        # Vertices sampled from the map at the latest query, shape (N, 3), for visualization.
+        self.last_sampled_vertices = None
         if includes_nvblox(self.args.data_type):
             print("Clearing nvblox mapper.")
             self.isaaclab_nvblox_mapper.clear()
@@ -94,6 +96,10 @@ class NvbloxDiffuserActorPolicy(PolicyBase):
         # Extract the model inputs from IsaacLab.
         # TODO(Vik): This does not support multiple embodiments. Fix this in separate MR
         model_inputs = self._get_model_inputs(embodiment=embodiment, observation=observation)
+        if includes_nvblox(self.args.data_type):
+            self.last_sampled_vertices = model_inputs["vertices"][0][
+                model_inputs["vertices_valid_mask"][0]
+            ]
         # Run the model
         pred, head_yaw_pred, _, encoded_inputs, cross_attn_weights = self.model(
             gt_gripper_pred=None,

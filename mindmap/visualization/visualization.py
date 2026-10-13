@@ -7,14 +7,17 @@
 # without an express license agreement from NVIDIA CORPORATION or
 # its affiliates is strictly prohibited.
 #
-from typing import Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import cv2
 import matplotlib
 import numpy as np
 import numpy.typing as npt
+from nvblox_torch.mapper import Mapper
+from nvblox_torch.rendering import render_depth_and_color_image
 import open3d as o3d
 import torch
+from transforms3d.quaternions import quat2mat
 
 from mindmap.data_loading.batching import unpack_batch
 from mindmap.geometry.transforms import (
@@ -22,6 +25,7 @@ from mindmap.geometry.transforms import (
     transformation_trajectory_from_parts,
 )
 from mindmap.image_processing.pca import apply_pca_return_projection
+from mindmap.mapping.nvblox_mapper_constants import MAPPER_TO_ID
 
 
 class VideoWriter:
@@ -39,6 +43,95 @@ class VideoWriter:
 
     def close(self):
         self.writer.release()
+
+
+def _get_camera_to_world(camera: Any) -> torch.Tensor:
+    """Pose of an IsaacLab camera in the world, in the ROS convention (x right, y down, z forward)."""
+    camera_to_world = torch.eye(4)
+    camera_to_world[:3, :3] = torch.from_numpy(quat2mat(camera.data.quat_w_ros[0].cpu().numpy()))
+    camera_to_world[:3, 3] = camera.data.pos_w[0].cpu()
+    return camera_to_world
+
+
+def render_reconstruction_from_camera(
+    mapper: Mapper, camera: Any
+) -> Tuple[torch.Tensor, torch.Tensor]:
+    """Render the static nvblox map (TSDF surface with fused color) from an IsaacLab camera.
+
+    The map is sphere traced on the GPU by nvblox, so no display or OpenGL context is needed.
+
+    Returns:
+        torch.Tensor: Depth image, shape (H, W), in meters. Pixels without a surface are -1.
+        torch.Tensor: RGB image, shape (H, W, 3), dtype uint8. Pixels without a surface are black.
+    """
+    height, width = camera.image_shape
+    # nvblox expects the camera-to-world pose (T_S_C), although its docstring says world-to-camera.
+    # Ray length and step limit are nvblox's SphereTracer defaults.
+    depth_image, color_image = render_depth_and_color_image(
+        mapper.tsdf_layer_view(MAPPER_TO_ID.STATIC),
+        mapper.color_layer_view(MAPPER_TO_ID.STATIC),
+        _get_camera_to_world(camera),
+        camera.data.intrinsic_matrices[0].float().cpu(),
+        height,
+        width,
+        max_ray_length=15.0,
+        max_steps=100,
+    )
+    return depth_image.cpu(), color_image.cpu()
+
+
+def draw_visible_points(
+    image: torch.Tensor, depth_image: torch.Tensor, points: torch.Tensor, camera: Any
+) -> torch.Tensor:
+    """Draw world points as dots on an image rendered from an IsaacLab camera.
+
+    Points hidden behind the rendered surface are skipped.
+
+    Args:
+        image: RGB image, shape (H, W, 3), dtype uint8.
+        depth_image: Depth image rendered with the image, shape (H, W), -1 where there is no surface.
+        points: World points, shape (N, 3).
+
+    Returns:
+        torch.Tensor: RGB image with the dots, shape (H, W, 3), dtype uint8.
+    """
+    # A point counts as visible if it lies within two voxels of the rendered surface.
+    max_distance_behind_surface_m = 0.02
+    world_to_camera = torch.linalg.inv(_get_camera_to_world(camera))
+    points_in_camera = points.cpu().float() @ world_to_camera[:3, :3].T + world_to_camera[:3, 3]
+    pixels = points_in_camera @ camera.data.intrinsic_matrices[0].float().cpu().T
+    columns = (pixels[:, 0] / pixels[:, 2]).round().long()
+    rows = (pixels[:, 1] / pixels[:, 2]).round().long()
+    height, width = depth_image.shape
+    in_image = (points_in_camera[:, 2] > 0) & (columns >= 0) & (columns < width)
+    in_image &= (rows >= 0) & (rows < height)
+    columns, rows, depths = columns[in_image], rows[in_image], points_in_camera[in_image, 2]
+    surface_depths = depth_image[rows, columns]
+    visible = (surface_depths > 0) & (depths <= surface_depths + max_distance_behind_surface_m)
+    image_with_dots = image.numpy().copy()
+    for column, row in zip(columns[visible].tolist(), rows[visible].tolist()):
+        cv2.circle(image_with_dots, (column, row), radius=2, color=(255, 255, 0), thickness=-1)
+    return torch.from_numpy(image_with_dots)
+
+
+def mask_out_pixels_not_integrated(
+    integration_images: Dict[str, torch.Tensor], image_size: Tuple[int, int]
+) -> torch.Tensor:
+    """Show the RGB image a camera fed into the map, with the pixels whose depth was not integrated in black.
+
+    Args:
+        integration_images: Images of one camera and mapper, as stored in
+            IsaacLabNvbloxMapper.last_nvblox_integration_images.
+        image_size: Output size (H, W).
+
+    Returns:
+        torch.Tensor: RGB image, shape (H, W, 3), dtype uint8.
+    """
+    rgb_image = integration_images["rgb_frame"].permute(1, 2, 0).cpu()
+    integrated = integration_images["depth_mask"].cpu()[..., None]
+    image = (rgb_image * integrated * 255).to(torch.uint8).numpy()
+    height, width = image_size
+    return torch.from_numpy(cv2.resize(image, (width, height)))
 
 
 def get_sphere_mesh(
