@@ -84,6 +84,12 @@ RUN --mount=type=cache,target=/home/${USER_NAME}/.cache,uid=${USER_ID} \
     . /opt/venv/bin/activate && \
     cd /isaac-lab && /isaac-lab/isaaclab.sh --install
 
+# IsaacSim pins osqp<1.0, but qpsolvers>=4.8.2 (pulled in by IsaacLab's pin-pink) only works with osqp>=1.0.
+# Otherwise the Pink IK of the humanoid finds no solver, and IsaacLab silently keeps the arm joint targets.
+RUN --mount=type=cache,target=/home/${USER_NAME}/.cache,uid=${USER_ID} \
+    . /opt/venv/bin/activate && \
+    python3 -m pip install "qpsolvers<4.8.2"
+
 # Let's accept the EULA since we already know it by heart.
 RUN echo "Y" > /opt/venv/lib/python3.10/site-packages/omni/EULA_ACCEPTED
 
