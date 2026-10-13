@@ -8,6 +8,7 @@
 # its affiliates is strictly prohibited.
 #
 import contextlib
+import os
 from pathlib import Path
 from typing import List
 
@@ -44,7 +45,9 @@ from mindmap.isaaclab_utils.isaaclab_datagen_utils import (
 )
 from mindmap.isaaclab_utils.isaaclab_writer import IsaacLabWriter
 from mindmap.mapping.isaaclab_nvblox_mapper import IsaacLabNvbloxMapper
+from mindmap.mapping.nvblox_mapper_constants import MAPPER_TO_ID
 from mindmap.tasks.tasks import Tasks
+from mindmap.visualization.visualization import VideoWriter, get_reconstruction_video_frame
 from mindmap.visualization.visualizer import Visualizer
 
 
@@ -110,17 +113,21 @@ class IsaacLabDataGenerator:
         with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
             while simulation_app.is_running() and not simulation_app.is_exiting():
                 for episode_name in selected_demo_names:
-                    demo_directory = demo_directory_from_episode_name(
-                        self.args.output_dir, episode_name
-                    )
-                    isaaclab_writer = IsaacLabWriter(demo_directory)
+                    # Without an output directory, the demos are only replayed and nothing is written.
+                    isaaclab_writer = None
+                    if self.args.output_dir:
+                        demo_directory = demo_directory_from_episode_name(
+                            self.args.output_dir, episode_name
+                        )
+                        isaaclab_writer = IsaacLabWriter(demo_directory)
                     outcome_bool = self.try_simulate_episode_max_n_times(
                         episode_name, isaaclab_writer, self.embodiment, self.args.max_num_attempts
                     )
                     outcome_str = "SUCCEEDED" if outcome_bool else "FAILED"
                     print(f"{episode_name} {outcome_str}.")
                     # Save the args for reproducibility.
-                    self.args.save(Path(demo_directory) / DATAGEN_ARGUMENT_FILE_NAME)
+                    if self.args.output_dir:
+                        self.args.save(Path(demo_directory) / DATAGEN_ARGUMENT_FILE_NAME)
                 break
 
     def try_simulate_episode_max_n_times(
@@ -150,13 +157,16 @@ class IsaacLabDataGenerator:
 
         for retry_idx in range(max_num_attempts):
             print(f"Run {episode_name} attempt {retry_idx + 1} / {max_num_attempts}")
-            outcome_bool = self.simulate_episode(episode_data, isaaclab_writer, embodiment)
+            outcome_bool = self.simulate_episode(
+                episode_name, episode_data, isaaclab_writer, embodiment
+            )
             if outcome_bool:
                 break
         return outcome_bool
 
     def simulate_episode(
         self,
+        episode_name: str,
         episode_data: torch.Tensor,
         isaaclab_writer: IsaacLabWriter,
         embodiment: EmbodimentBase,
@@ -164,6 +174,7 @@ class IsaacLabDataGenerator:
         """Simulate a single episode using the provided data.
 
         Args:
+            episode_name (str): Name of the episode to simulate.
             episode_data (torch.Tensor): Data for the episode to simulate.
             isaaclab_writer (IsaacLabWriter): Writer object for saving episode data.
             embodiment (EmbodimentBase): Helper object for environment.
@@ -195,6 +206,16 @@ class IsaacLabDataGenerator:
             print("Clearing nvblox map")
             self.isaaclab_nvblox_mapper.clear()
 
+        reconstruction_video_writer = None
+        if self.args.record_reconstruction_videos:
+            reconstruction_video_writer = VideoWriter(
+                os.path.join(
+                    self.args.record_camera_output_path, f"{episode_name}_reconstruction.mp4"
+                ),
+                fps=15,
+                video_size=(2 * self.args.video_size[0], 2 * self.args.video_size[1]),
+            )
+
         # In tqdm, disable=None means that progress bar is disabled for non-tty sessions (e.g. CI)
         for action_index, action in tqdm.tqdm(enumerate(actions), total=len(actions), disable=None):
             # Initialize sample for visualization
@@ -214,6 +235,22 @@ class IsaacLabDataGenerator:
                 self.isaaclab_nvblox_mapper.decay()
                 for camera_handler in embodiment.camera_handlers:
                     self.isaaclab_nvblox_mapper.update_reconstruction_from_camera(camera_handler)
+
+                # The vertices the policy would sample from the map if it were queried at this step.
+                if reconstruction_video_writer is not None:
+                    model_inputs = self.isaaclab_nvblox_mapper.get_nvblox_model_inputs(
+                        mapper_id=MAPPER_TO_ID.STATIC, remove_zero_features=True
+                    )
+                    sampled_vertices = model_inputs["vertices"][0][
+                        model_inputs["vertices_valid_mask"][0]
+                    ]
+                    reconstruction_video_writer.add_image(
+                        get_reconstruction_video_frame(
+                            self.isaaclab_nvblox_mapper,
+                            self.env.unwrapped.scene["record_cam"],
+                            sampled_vertices,
+                        )
+                    )
 
             # Save the data to disk (skip first frame as sometimes the rgb is greyscale only)
             if self.args.output_dir and action_index != 0:
@@ -262,6 +299,9 @@ class IsaacLabDataGenerator:
                 )
                 self.visualizer.run_until_space_pressed()
 
+        if reconstruction_video_writer is not None:
+            reconstruction_video_writer.close()
+
         outcome_bool = get_task_outcome(self.args.task, self.env.unwrapped)
         # If the episode was stopped early, we consider it a success.
         success = outcome_bool or early_stop
@@ -275,9 +315,12 @@ def main():
     # Launch the simulator. The context manager ensures that the app is closed also if an error occurs.
     with SimulationAppContext(headless=args.headless, enable_cameras=True) as simulation_app:
         # Note: Isaclaab modules can only be imported after the simulation app is launched.
-        from mindmap.isaaclab_utils.environments import SimEnvironment
+        from mindmap.isaaclab_utils.environments import TASK_TO_RECORDING_CAMERA, SimEnvironment
 
-        with SimEnvironment(args) as sim_environment:
+        record_camera_params = None
+        if args.record_reconstruction_videos:
+            record_camera_params = TASK_TO_RECORDING_CAMERA[args.task.name]
+        with SimEnvironment(args, record_camera_params=record_camera_params) as sim_environment:
             replayer = IsaacLabDataGenerator(args, sim_environment.env)
             selected_demo_names = get_episode_names(args.demos_datagen)
             replayer.simulate_selected_demos(selected_demo_names, simulation_app)

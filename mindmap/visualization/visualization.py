@@ -134,6 +134,47 @@ def mask_out_pixels_not_integrated(
     return torch.from_numpy(cv2.resize(image, (width, height)))
 
 
+def get_reconstruction_video_frame(
+    isaaclab_nvblox_mapper: Any, record_camera: Any, sampled_vertices: torch.Tensor
+) -> torch.Tensor:
+    """Compose a 2x2 frame showing how the map is built and what the policy gets from it.
+
+    Top: the recording camera's RGB, and the primary camera's RGB with the pixels not integrated
+    into the map in black. Bottom: the static map rendered from the recording camera, plain and
+    with the sampled vertices.
+
+    Args:
+        isaaclab_nvblox_mapper: The IsaacLabNvbloxMapper, just updated with the primary camera.
+        record_camera: The IsaacLab recording camera.
+        sampled_vertices: Vertices sampled from the map as policy input, shape (N, 3).
+
+    Returns:
+        torch.Tensor: RGB frame, shape (2H, 2W, 3), dtype uint8.
+    """
+    record_image = record_camera.data.output["rgb"][0].cpu()
+    # Without --add_external_cam, only the primary camera (wrist or pov) feeds the map.
+    (primary_camera_integration_images,) = (
+        isaaclab_nvblox_mapper.last_nvblox_integration_images.values()
+    )
+    primary_camera_image = mask_out_pixels_not_integrated(
+        primary_camera_integration_images[MAPPER_TO_ID.STATIC.name],
+        image_size=record_image.shape[:2],
+    )
+    depth_image, reconstruction_image = render_reconstruction_from_camera(
+        isaaclab_nvblox_mapper.mapper, record_camera
+    )
+    reconstruction_with_vertices_image = draw_visible_points(
+        reconstruction_image, depth_image, sampled_vertices, record_camera
+    )
+    return torch.cat(
+        [
+            torch.cat([record_image, primary_camera_image], dim=1),
+            torch.cat([reconstruction_image, reconstruction_with_vertices_image], dim=1),
+        ],
+        dim=0,
+    )
+
+
 def get_sphere_mesh(
     position: torch.Tensor, radius: float, color: Optional[npt.NDArray] = None
 ) -> o3d.geometry.TriangleMesh:

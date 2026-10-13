@@ -21,6 +21,31 @@ from tap import Tap
 from mindmap.embodiments.embodiment_base import EmbodimentType
 from mindmap.embodiments.task_to_embodiment import get_embodiment_type_from_task
 from mindmap.isaaclab_utils.render_settings import RenderSettings
+from mindmap.tasks.tasks import Tasks
+
+
+TASK_TO_RECORDING_CAMERA = {
+    Tasks.CUBE_STACKING.name: {
+        "focal_length": 18.0,
+        "position": (1.0, -0.25, 0.9),
+        "rotation": (0.755, 0.354, 0.228, 0.502),
+    },
+    Tasks.MUG_IN_DRAWER.name: {
+        "focal_length": 13.0,
+        "position": (-0.76, 0.58, 0.89),
+        "rotation": (0.51, 0.23, -0.41, -0.73),
+    },
+    Tasks.DRILL_IN_BOX.name: {
+        "focal_length": 13.0,
+        "position": (-0.5, 0.0, 1.75),
+        "rotation": (0.683, 0.183, -0.183, -0.683),
+    },
+    Tasks.STICK_IN_BIN.name: {
+        "focal_length": 13.0,
+        "position": (4.6, 1.2, 1.9),
+        "rotation": (0.92, 0.38, 0.0, 0.0),
+    },
+}
 
 
 def _get_env_name(args: Tap) -> str:

@@ -32,14 +32,8 @@ from mindmap.embodiments.humanoid.embodiment import HumanoidEmbodiment
 from mindmap.embodiments.state_base import PolicyStateBase
 from mindmap.embodiments.task_to_embodiment import get_embodiment_type_from_task
 from mindmap.isaaclab_utils.simulation_app import SimulationAppContext
-from mindmap.mapping.nvblox_mapper_constants import MAPPER_TO_ID
 from mindmap.tasks.tasks import Tasks
-from mindmap.visualization.visualization import (
-    VideoWriter,
-    draw_visible_points,
-    mask_out_pixels_not_integrated,
-    render_reconstruction_from_camera,
-)
+from mindmap.visualization.visualization import VideoWriter, get_reconstruction_video_frame
 
 CLOSED_LOOP_DEMO_LENGTH_TRAJECTORY_MODE = 500
 CLOSED_LOOP_DEMO_LENGTH_KEYFRAME_MODE = 500
@@ -237,28 +231,9 @@ def run_one_episode(
         # The cameras still show the simulation state the map was just updated with.
         # The sampled vertices are the ones of the latest policy query.
         if reconstruction_video_writer is not None:
-            record_image = record_camera.data.output["rgb"][0].cpu()
-            # Without --add_external_cam, only the primary camera (wrist or pov) feeds the map.
-            (primary_camera_integration_images,) = (
-                policy.isaaclab_nvblox_mapper.last_nvblox_integration_images.values()
-            )
-            primary_camera_image = mask_out_pixels_not_integrated(
-                primary_camera_integration_images[MAPPER_TO_ID.STATIC.name],
-                image_size=record_image.shape[:2],
-            )
-            depth_image, reconstruction_image = render_reconstruction_from_camera(
-                policy.isaaclab_nvblox_mapper.mapper, record_camera
-            )
-            reconstruction_with_vertices_image = draw_visible_points(
-                reconstruction_image, depth_image, policy.last_sampled_vertices, record_camera
-            )
             reconstruction_video_writer.add_image(
-                torch.cat(
-                    [
-                        torch.cat([record_image, primary_camera_image], dim=1),
-                        torch.cat([reconstruction_image, reconstruction_with_vertices_image], dim=1),
-                    ],
-                    dim=0,
+                get_reconstruction_video_frame(
+                    policy.isaaclab_nvblox_mapper, record_camera, policy.last_sampled_vertices
                 )
             )
 

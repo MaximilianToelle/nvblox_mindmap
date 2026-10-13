@@ -122,7 +122,13 @@ class DataGenArgs(Tap):
     )
 
 
-class ClosedLoopArgs(Tap):
+class RecordingArgs(Tap):
+    record_camera_output_path: str = None  # The path to store recorded camera images and videos
+    record_reconstruction_videos: bool = False  # Record a 2x2 video: the recording camera's RGB, the primary camera's RGB (wrist or pov) with the pixels not integrated into the map in black, the nvblox map rendered from the recording camera, and the same render with the vertices sampled from the map as policy input (closed loop: at the latest query, replay: at every step).
+    video_size: Tuple[int, int] = (320, 320)  # Image size of recorded video
+
+
+class ClosedLoopArgs(RecordingArgs):
     # Environment params
     demos_closed_loop: str = (
         "0"  # A list of demo indices to be replayed (can handle ranges e.g. --demos 1 2 3-5 7).
@@ -136,10 +142,7 @@ class ClosedLoopArgs(Tap):
     # Logging and evaluation params
     eval_file_path: str = None  # Path to store the .json evaluation file.
     # Recording camera params
-    record_camera_output_path: str = None  # The path to store recorded camera images and videos
     record_videos: bool = False
-    record_reconstruction_videos: bool = False  # Record a 2x2 video: the recording camera's RGB, the primary camera's RGB (wrist or pov) with the pixels not integrated into the map in black, the nvblox map rendered from the recording camera, and the same render with the vertices the policy sampled from the map.
-    video_size: Tuple[int, int] = (320, 320)  # Image size of recorded video
     # GT predictions mode params
     gt_goals_subsampling_factor: int = 5  # only used in execute_gt_goals + use_keyposes = 0 mode
 
@@ -195,7 +198,9 @@ class VisualizerArgs(Tap):
 # Pulling in common arguments from the base classes.
 
 
-class DataGenAppArgs(ModelArgs, SimulationArgs, SystemArgs, VisualizerArgs, DataGenArgs):
+class DataGenAppArgs(
+    ModelArgs, SimulationArgs, SystemArgs, VisualizerArgs, DataGenArgs, RecordingArgs
+):
     output_dir: str = None  # Directory to store output files.
     add_depth_noise: bool = False  # Add noise to the depth camera output.
     max_num_attempts: int = 5  # Maximum number of attempts until a demo is successful
